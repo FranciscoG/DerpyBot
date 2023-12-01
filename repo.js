@@ -181,6 +181,7 @@ var flowUser = function(db, user, callback) {
  * @param  {int}      limit    
  * @param  {Function} callback 
  */
+/*
 var getLeaders = function(db, prop, limit, callback) {
   return db.ref('users')
     .orderByChild(prop)
@@ -189,7 +190,7 @@ var getLeaders = function(db, prop, limit, callback) {
       callback(snapshot.val());
     });
 };
-
+*/
 /**
  * Get a trigger from the database
  * @param  {Object}   bot         dubapi instance
@@ -356,10 +357,11 @@ var getSong = function(db, fkid) {
  * @param  {string}   id       Leader id whic is a combination of month + year
  * @param  {Object}   leaderObj Leaderboard information
  */
+/*
 var insertLeaderMonth = function(db, id, leaderObj) {
   return db.ref('leaderboard').child(id).set(leaderObj);
 };
-
+*/
 module.exports = {
   logUser  : logUser,
   findUserById  : findUserById,
@@ -369,7 +371,7 @@ module.exports = {
   propsUser  : propsUser,
   heartsUser  : heartsUser,
   flowUser : flowUser,
-  getLeaders : getLeaders,
+  //getLeaders : getLeaders,
   incrementUser : incrementUser,
   getTrigger : getTrigger,
   updateTrigger : updateTrigger,
@@ -379,6 +381,6 @@ module.exports = {
   getSongIssue : getSongIssue,
   saveSong : saveSong,
   getSong : getSong,
-  insertLeaderMonth : insertLeaderMonth,
+  //insertLeaderMonth : insertLeaderMonth,
   logTriggerHistory :logTriggerHistory 
 };

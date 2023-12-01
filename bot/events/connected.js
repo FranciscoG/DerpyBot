@@ -3,11 +3,11 @@ const mediaStore = require(process.cwd() + "/bot/store/mediaInfo.js");
 const historyStore = require(process.cwd() + "/bot/store/history.js");
 const triggerStore = require(process.cwd() + "/bot/store/triggerStore.js");
 const dmStore = require(process.cwd() + "/bot/store/messages.js");
-const leaderUtils = require(process.cwd() + "/bot/utilities/leaderUtils.js");
+//const leaderUtils = require(process.cwd() + "/bot/utilities/leaderUtils.js");
 const _private = require(process.cwd() + "/private/get");
 const settings = _private.settings;
 const repo = require(process.cwd() + "/repo");
-const pointReset = require(process.cwd() + "/bot/utilities/point-reset.js");
+//const pointReset = require(process.cwd() + "/bot/utilities/point-reset.js");
 const setTimeout = require("timers").setTimeout;
 // const nmm = require(process.cwd()+ '/bot/store/nmm.js');
 // const ff = require(process.cwd()+ '/bot/store/ff.js');
@@ -62,7 +62,7 @@ module.exports = function(bot, db) {
           var val = snapshot.val();
           bot.allUsers = val;
           // update leaderboard everytime someone gives a point
-          leaderUtils.updateLeaderboard(bot, db);
+          //leaderUtils.updateLeaderboard(bot, db);
         },
         function(error) {
           bot.log(
@@ -77,6 +77,7 @@ module.exports = function(bot, db) {
       triggerStore.init(bot, db);
 
       // store leaderboard info locally
+/*
       var leaderboard = db.ref("leaderboard");
       leaderboard.on(
         "value",
@@ -92,8 +93,8 @@ module.exports = function(bot, db) {
           );
         }
       );
-
-      pointReset(bot, db);
+*/
+      //pointReset(bot, db);
 
       bot.sendChat(`\`Initialization complete\``);
 

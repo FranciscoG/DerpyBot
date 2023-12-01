@@ -54,7 +54,7 @@ module.exports = {
   'reset_points' : true,
 
   // whether the bot should announce to the room every hour who the currently monthly leaders are
-  'hourly_leader' : true,
+  'hourly_leader' : false,
 
   'longSongs' : {
     // should we warn the room that a song exceeds the max length?
