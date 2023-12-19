@@ -15,7 +15,7 @@ const timestamp = moment().format('MMM-D-YYYY-hmmss');
 
 /**
  * Load production data into test db
- * @param object val 
+ * @param {object} val 
  */
 function step2(val) {
   /** 
