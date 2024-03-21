@@ -18,6 +18,7 @@ module.exports = {
   'ROOMNAME': 'dubtrack room name',
   'SOUNDCLOUDID': 'Soundcloud app client ID',
   'YT_API' : 'YouTube API key',
+  'CLEVERBOT_API_KEY': 'Cleverbot API key',
   'FIREBASE' : {
     'BASEURL' : 'firebase url'
   }

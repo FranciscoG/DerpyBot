@@ -1,4 +1,6 @@
 'use strict';
+const _private = require(process.cwd() + "/private/get");
+const settings = _private.settings;
 
 /**
  * convert X minutes to ms
@@ -10,7 +12,7 @@ function minToMs(x) {
 }
 
 module.exports = {
-  "botName" : "DerpyBot",
+  "botName" : settings.USERNAME,
 
   // url location of this bot's commands
   "commands" : "http://franciscog.com/DerpyBot/commands/",
@@ -28,6 +30,9 @@ module.exports = {
   
   // auto upvote every song
   'autoUpvote' : true, 
+
+  // enable the bot to respond to chat messages using the Cleverbot API
+  'cleverbot' : true,
 
   // play music when the queue is empty
   'playOnEmpty' : false,
