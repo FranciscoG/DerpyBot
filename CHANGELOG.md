@@ -7,8 +7,12 @@ The Commands of the bot are its API so here's how it will adhere to Semantic Ver
 **MINOR** - Adding new commands or functionality that won't affect or break existing ones     
 **PATCH** - Bug fixes, code improvements (backwards-compatible bug fixes)
 
-## [2.0.0] - 2023-11-??
+## [2.1.0] - 2024-03-21
+- Restored Cleverbot
+
+## [2.0.0] - 2023-11-15
 Revived the bot for Queup. 
+- removed Cleverbot because they started charging for their API
 
 ## [1.24.0] - 2019-07-18
 ## Fixed
