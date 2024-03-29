@@ -3,52 +3,43 @@ const crypto = require("crypto");
 const querystring = require("querystring");
 
 const API_BASE = "ws.audioscrobbler.com/2.0";
-const LASTFM_API_METHODS = {
-  AUTH: {
-    GET_MOBILE_SESSION: "auth.getMobileSession",
-  },
-  ARTIST: {
-    GET_INFO: "artist.getInfo",
-    GET_SIMILAR: "artist.getSimilar",
-    GET_TOP_TRACKS: "artist.getTopTracks",
-    GET_TOP_ALBUMS: "artist.getTopAlbums",
-    GET_TAGS: "artist.getTags",
-    GET_EVENTS: "artist.getEvents",
-    GET_IMAGES: "artist.getImages",
-    SEARCH: "artist.search",
-  },
-  ALBUM: {
-    GET_INFO: "album.getInfo",
-    GET_TAGS: "album.getTags",
-    SEARCH: "album.search",
-  },
-  TRACK: {
-    GET_INFO: "track.getInfo",
-    GET_SIMILAR: "track.getSimilar",
-    GET_TAGS: "track.getTags",
-    SEARCH: "track.search",
-  },
-};
 
 /**
- * @typedef {object} LastFmUrlParams
+ * @typedef {object} BaseGetUrlParams
  * @property {string} method
  * @property {string} [api_key]
  * @property {0 | 1} autocorrect
  * @property {string} username
- * @property {string} artist
  * @property {'json'} format
+ */
+
+/**
+ * @typedef {object} GetInfoParams
+ * @property {string} artist
  * @property {string} [track]
  */
 
 /**
- * @typedef {object} SessionKeyResponse
+ * @typedef {object} ErrorResponse
  * @property {string} [message]
  * @property {number} [error]
+ */
+
+/**
+ * @typedef {object} SessionKeyResponse
  * @property {object} [session]
  * @property {string} session.key
  * @property {string} session.name
  * @property {number} session.subscriber
+ */
+
+/**
+ * @typedef {object} LastFmTrackScrobble
+ * see https://www.last.fm/api/show/track.scrobble for fulll list of params
+ * @property {string} artist
+ * @property {string} track
+ * @property {number} timestamp The time the track started playing, in UNIX timestamp format (integer number of seconds since 00:00:00, January 1st 1970 UTC). This must be in the UTC time zone.
+ * @property {string} [album]
  */
 
 class LastFm {
@@ -70,48 +61,80 @@ class LastFm {
     this.authToken = options.authToken;
     this.session_key = options.session_key;
     this.logger = logger;
+    this.validateOptions();
+  }
+
+  validateOptions() {
+    const errors = [];
+    if (!this.api_secret) {
+      errors.push("api_secret");
+    }
+
+    if (!this.username) {
+      errors.push("username");
+    }
+
+    if (!this.password) {
+      errors.push("password");
+    }
+
+    if (!this.api_key) {
+      errors.push("api_key");
+    }
+
+    if (errors.length) {
+      const message = "Missing required options: " + errors.join(", ");
+      this.logger("error", "LASTFM", message);
+      throw new Error(message);
+    }
   }
 
   /**
    *
-   * @param {object} opt
-   * @param {string} opt.artist
-   * @param {string} [opt.track]
-   * @param {(data: any) => void} [opt.callback]
+   * @param {string} url
+   * @param {RequestInit} options
+   * @returns
    */
-  getInfo(opt = {}) {
-    if (!opt.artist && typeof opt.callback === "function") {
-      opt.callback({
-        "@": { status: "error" },
-        error: { "#": "Artist not specified." },
-      });
-      return;
-    }
+  async doFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    options.headers["User-Agent"] = "ChilloutMixer Bot";
+    const res = await fetch(url, options);
+    const json = await res.json();
+    return json;
+  }
 
+  /**
+   *
+   * @param {object} opts
+   * @param {string} opts.method
+   * @param {string} opts.artist
+   * @param {string} [opts.track]
+   * @returns
+   */
+  async doGet(opts) {
+    /**
+     * @type {BaseGetUrlParams & GetInfoParams}
+     */
     const queryObject = {
-      method: opt.track ? LASTFM_API_METHODS.TRACK.GET_INFO : LASTFM_API_METHODS.ARTIST.GET_INFO,
-      api_key: this.api_key,
+      ...opts,
       autocorrect: 1,
       username: this.username,
-      artist: opt.artist,
+      api_key: this.api_key,
       format: "json",
     };
-    if (opt.track) queryObject.track = opt.track;
-    const query = querystring.stringify(queryObject);
 
+    const query = querystring.stringify(queryObject);
     const url = `http://${API_BASE}/?${query}`;
-    fetch(url, { headers: { "User-Agent": "DerpyBot" } })
-      .then((res) => {
-        return res.json();
-      })
-      .then((data) => {
-        if (typeof opt.callback == "function") {
-          opt.callback(data);
-        }
-      })
-      .catch((e) => {
-        this.logger("error", "LASTFM", "Exception fetching track or artist info: ", e);
-      });
+
+    try {
+      const json = await this.doFetch(url);
+      return json;
+    } catch (e) {
+      this.logger("error", "LASTFM", `Exception fetching ${opts.method}`, e);
+      return {
+        error: e instanceof Error ? e.message : `Exception fetching ${opts.method}`,
+      };
+    }
   }
 
   /**
@@ -121,39 +144,24 @@ class LastFm {
    */
   async getSessionKey() {
     try {
-      const sig = [
-        "api_key",
-        this.api_key,
-        "method",
-        LASTFM_API_METHODS.AUTH.GET_MOBILE_SESSION,
-        "password",
-        this.password,
-        "username",
-        this.username,
-        this.api_secret,
-      ].join("");
-      const api_sig = md5(sig);
+      const api_sig = this.makeSignature("auth.getMobileSession");
 
       const bodyObj = {
-        method: LASTFM_API_METHODS.AUTH.GET_MOBILE_SESSION,
+        method: "auth.getMobileSession",
         password: this.password,
         username: this.username,
         api_key: this.api_key,
         api_sig,
       };
-      const body = Object.keys(bodyObj)
-        .map((key) => `${key}=${bodyObj[key]}`)
-        .join("&");
+      const body = stringifyBody(bodyObj);
 
       const url = `https://${API_BASE}/?format=json`;
-      const res = await fetch(url, { method: "POST", body, headers: { "User-Agent": "DerpyBot" } });
 
       /**
-       * @type {SessionKeyResponse}
+       * @type {SessionKeyResponse | ErrorResponse}
        */
       // @ts-ignore
-      const json = await res.json();
-      console.log(json);
+      const json = await this.doFetch(url, { method: "POST", body });
       if (json?.session?.key) {
         this.session_key = json.session.key;
         return {
@@ -176,7 +184,11 @@ class LastFm {
     }
   }
 
-  scrobbleTrack(opt = {}) {
+  /**
+   * https://www.last.fm/api/show/track.scrobble
+   * @param {LastFmTrackScrobble} opt
+   */
+  scrobbleTrack(opt) {
     const options = Object.assign(opt, { method: "track.scrobble" });
     this.doScrobble(options);
   }
@@ -196,394 +208,284 @@ class LastFm {
     this.doScrobble(options);
   }
 
-  addTrackTags(opt = {}) {
-    const options = Object.assign(opt, { method: "track.addTags" });
-    this.doScrobble(options);
+  /**
+   * Creates an API signature based on the rules outlined here:
+   * https://www.last.fm/api/mobileauth#_4-sign-your-calls
+   *
+   * @param {string} method
+   */
+  makeSignature(method) {
+    const sig = [
+      "api_key",
+      this.api_key,
+      "method",
+      method,
+      "password",
+      this.password,
+      "username",
+      this.username,
+      this.api_secret,
+    ].join("");
+    const api_sig = md5(sig);
+    return api_sig;
   }
 
-  doScrobble(options = {}) {
-    if (!this.api_secret && typeof options.callback === "function") {
-      options.callback({
-        success: false,
-        error: "API Secret not specified.",
+  /**
+   *
+   * @param {LastFmTrackScrobble & { method: string }} options
+   */
+  async doScrobble(options) {
+    try {
+      options.timestamp = options.timestamp
+        ? Math.floor(options.timestamp)
+        : Math.floor(now() / 1000);
+
+      const api_sig = this.makeSignature(options.method);
+
+      // var sig =
+      //   "api_key" +
+      //   this.api_key +
+      //   "artist" +
+      //   options.artist +
+      //   "method" +
+      //   options.method +
+      //   "sk" +
+      //   this.session_key +
+      //   (options.tags != null ? "tags" + options.tags : "") +
+      //   "timestamp" +
+      //   options.timestamp +
+      //   "track" +
+      //   options.track +
+      //   this.api_secret;
+      // var api_sig = md5(sig);
+
+      const bodyObj = {
+        ...options,
+        sk: this.session_key,
+        api_key: this.api_key,
+        api_sig,
+      };
+
+      const body = querystring.stringify(bodyObj);
+
+      const url = `https://${API_BASE}/?format=json`;
+
+      /**
+       * @type {ErrorResponse}
+       */
+      // @ts-ignore
+      const json = await this.doFetch(url, {
+        method: "POST",
+        body,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Length": body.length.toString(),
+        },
       });
-      return;
+
+      if (!json?.error) {
+        return {
+          success: true,
+        };
+      }
+
+      return {
+        success: false,
+        error: json.message,
+        errorCode: json.error,
+      };
+    } catch (e) {
+      this.logger("error", "LASTFM", `Exception during ${options.method}`, e);
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : `Exception during ${options.method}`,
+      };
+    }
+  }
+
+  /**
+   * https://www.last.fm/api/show/track.getInfo
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {string} opt.track
+   */
+  async getTrackInfo(opt) {
+    if (!opt.artist || !opt.track) {
+      return {
+        error: "Artist and track are required.",
+      };
     }
 
-    if (!this.username && typeof options.callback == "function") {
-      options.callback({
-        success: false,
-        error: "Username not specified.",
-      });
-      return;
+    const result = await this.doGet({ ...opt, method: "track.getInfo" });
+    if (!result?.error) {
+      return {
+        success: true,
+        trackInfo: result.track,
+      };
     }
 
-    if (!this.session_key && typeof options.callback == "function") {
-      options.callback({
-        success: false,
-        error: "Password not specified.",
-      });
-      return;
+    return {
+      success: false,
+      error: result.error,
+    };
+  }
+
+  /**
+   * https://www.last.fm/api/show/artist.getInfo
+   * @param {object} opt
+   * @param {string} opt.artist
+   */
+  async getArtistInfo(opt) {
+    if (!opt.artist) {
+      return {
+        error: "Artist is required.",
+      };
+    }
+    const result = await this.doGet({ ...opt, method: "artist.getInfo" });
+    if (!result?.error) {
+      return {
+        success: true,
+        trackInfo: result.artist,
+      };
     }
 
-    options.timestamp = options.timestamp
-      ? Math.floor(options.timestamp)
-      : Math.floor(now() / 1000);
+    return {
+      success: false,
+      error: result.error,
+    };
+  }
 
-    var sig =
-      "api_key" +
-      this.api_key +
-      "artist" +
-      options.artist +
-      "method" +
-      options.method +
-      "sk" +
-      this.session_key +
-      (options.tags != null ? "tags" + options.tags : "") +
-      "timestamp" +
-      options.timestamp +
-      "track" +
-      options.track +
-      this.api_secret;
-    var api_sig = md5(sig);
+  /**
+   * https://www.last.fm/api/show/artist.getTags
+   * https://www.last.fm/api/show/track.getTags
+   *
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {string} [opt.track]
+   */
+  async getTags(opt) {
+    if (!opt.artist) {
+      return {
+        error: "Artist is required.",
+      };
+    }
 
-    var post_obj = {
+    const method = opt.track ? "track.getTags" : "artist.getTags";
+    const result = await this.doGet({ ...opt, method });
+    if (!result?.error) {
+      return {
+        success: true,
+        tags: result.tags,
+      };
+    }
+
+    return {
+      success: false,
+      error: result.error,
+    };
+  }
+
+  /**
+   * https://www.last.fm/api/show/artist.getInfo
+   * There is no separete method for getting the artist's play count.
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {string} [opt.track]
+   */
+  async getPlays(opt) {
+    if (!opt.artist) {
+      return {
+        error: "Artist is required.",
+      };
+    }
+
+    const method = opt.track ? "track.getInfo" : "artist.getInfo";
+    const result = await this.doGet({ ...opt, method });
+    if (!result?.error) {
+      return {
+        success: true,
+        plays: opt.track ? result.track.userplaycount : result.artist.stats.userplaycount,
+        artist: opt.track ? result.track.artist.name : result.artist.name,
+        track: opt.track ? result.track.name : null,
+      };
+    }
+
+    return {
+      success: false,
+      error: result.error,
+    };
+  }
+
+  /**
+   *
+   * @param {object} opt
+   * @param {string} opt.user
+   * @param {'overall' | '7day' | '1month' | '3month' | '6month' | '12month'} [opt.period]
+   * @param {number} [opt.limit] defaults to 50 if not provided
+   * @param {number} [opt.page] defaults to 1 if not provided
+   */
+  async getTopArtists(opt) {
+    if (!opt.user) {
+      return {
+        error: "User is required.",
+      };
+    }
+
+    const queryObject = {
+      ...opt,
+      method: "user.getTopArtists",
       api_key: this.api_key,
-      method: options.method,
-      sk: this.session_key,
-      api_sig: api_sig,
-      timestamp: options.timestamp,
-      artist: options.artist,
-      track: options.track,
+      format: "json",
     };
 
-    if (options.tags != null) post_obj.tags = options.tags;
-    var post_data = querystring.stringify(post_obj);
+    const query = querystring.stringify(queryObject);
+    const url = `http://${API_BASE}/?${query}`;
 
-    //	console.log("post_data: ", post_data);
-
-    var post_options = {
-      host: "ws.audioscrobbler.com",
-      port: "80",
-      path: "/2.0/",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Content-Length": post_data.length,
-      },
-    };
-
-    var post_req = http.request(post_options, function (res) {
-      res.setEncoding("utf8");
-      res.on("data", function (chunk) {
-        //			console.log('Response: ' + chunk);
-        var parser = new xml2js.Parser(xml2js.defaults["0.1"]);
-        parser.parseString(chunk, function (err, result) {
-          try {
-            if (result["@"].status == "ok") {
-              //						console.log("Track scrobbled (" + options.method + " )");
-              if (typeof options.callback == "function") {
-                options.callback({
-                  success: true,
-                });
-              }
-            } else {
-              if (typeof options.callback == "function") {
-                options.callback({
-                  success: false,
-                  error: result.error["#"],
-                });
-              }
-            }
-          } catch (e) {
-            if (this.debug) console.log("Exception parsing scrobble result: ", e);
-          }
-        });
-      });
-    });
-    post_req.write(post_data);
-    post_req.end();
-  }
-
-  getTrackInfo(opt) {
-    opt = opt || {};
-    if (opt.artist == undefined || (opt.artist == "" && typeof opt.callback == "function")) {
-      opt.callback({
+    try {
+      const json = await this.doFetch(url);
+      if (!json.error) {
+        return {
+          success: true,
+          topArtists: json.topartists.artist,
+        };
+      }
+      return {
         success: false,
-        error: "Artist not specified.",
-      });
-    } else if (opt.track == undefined || (opt.track == "" && typeof opt.callback == "function")) {
-      opt.callback({
-        success: false,
-        error: "Track not specified.",
-      });
-    } else if (typeof opt.callback == "function") {
-      var the_callback = opt.callback;
-      this._isTheMethodCaller = true;
-      this.getInfo(
-        Object.assign(opt, {
-          callback: function (result) {
-            this._isTheMethodCaller = false;
-            if (result["@"].status == "ok") {
-              the_callback({
-                success: true,
-                trackInfo: result.track,
-              });
-            } else {
-              the_callback({
-                success: false,
-                error: result.error["#"],
-              });
-            }
-          },
-        })
-      );
+        error: json.error,
+      };
+    } catch (e) {
+      this.logger("error", "LASTFM", `Exception fetching ${queryObject.method}`, e);
+      return {
+        error: e instanceof Error ? e.message : `Exception fetching ${queryObject.method}`,
+      };
     }
   }
 
-  getArtistInfo(opt) {
-    opt = opt || {};
-    opt.track = "";
-    if (opt.artist == undefined || (opt.artist == "" && typeof opt.callback == "function")) {
-      opt.callback({
-        success: false,
-        error: "Artist not specified.",
-      });
-    } else if (typeof opt.callback == "function") {
-      var the_callback = opt.callback;
-      this._isTheMethodCaller = true;
-      this.getInfo(
-        Object.assign(opt, {
-          callback: function (result) {
-            this._isTheMethodCaller = false;
-            if (result["@"].status == "ok") {
-              the_callback({
-                success: true,
-                artistInfo: result.artist,
-              });
-            } else {
-              the_callback({
-                success: false,
-                error: result.error["#"],
-              });
-            }
-          },
-        })
-      );
+  /**
+   * https://www.last.fm/api/show/artist.getSimilar
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {number} [opt.limit]
+   */
+  async getSimilarArtists(opt) {
+    if (!opt.artist) {
+      return {
+        error: "Artist is required.",
+      };
     }
-  }
 
-  getTags(opt) {
-    var the_callback = opt.callback;
-    this._isTheMethodCaller = true;
-    this.getInfo(
-      Object.assign(opt, {
-        callback: function (result) {
-          this._isTheMethodCaller = false;
-          //			console.log("result: ", result);
-          if (typeof the_callback == "function") {
-            if (result["@"].status == "ok") {
-              var tags =
-                opt.track != undefined && opt.track != ""
-                  ? result.track.toptags.tag
-                  : result.artist.tags.tag;
-              if (typeof tags == "object" && !tags.length) tags = [tags];
-              var args = {
-                success: true,
-                tags: tags || [],
-                artist:
-                  opt.track != undefined && opt.track != ""
-                    ? result.track.artist.name
-                    : result.artist.name,
-              };
-              if (opt.track != undefined && opt.track != "") args.track = result.track.name;
-              the_callback(args);
-            } else {
-              the_callback({
-                success: false,
-                error: result.error["#"],
-              });
-            }
-          }
-        },
-      })
-    );
-  }
+    const result = await this.doGet({ ...opt, method: "artist.getSimilar" });
+    if (!result?.error) {
+      return {
+        success: true,
+        similarArtists: result.similarartists.artist,
+      };
+    }
 
-  getPlays(opt) {
-    var the_callback = opt.callback;
-    this._isTheMethodCaller = true;
-    this.getInfo(
-      Object.assign(opt, {
-        callback: function (result) {
-          this._isTheMethodCaller = false;
-          if (typeof the_callback == "function") {
-            if (result["@"].status == "ok") {
-              var ret = {
-                success: true,
-                plays:
-                  opt.track != undefined && opt.track != ""
-                    ? result.track.userplaycount
-                    : result.artist.stats.userplaycount,
-                artist:
-                  opt.track != undefined && opt.track != ""
-                    ? result.track.artist.name
-                    : result.artist.name,
-              };
-              if (ret.plays == undefined) ret.plays = 0;
-              if (opt.track != undefined && opt.track != "") ret.track = result.track.name;
-              the_callback(ret);
-            } else {
-              the_callback({
-                success: false,
-                error: result.error["#"],
-              });
-            }
-          }
-        },
-      })
-    );
-  }
-
-  getTracks(opt) {
-    //	var the_callback = opt.callback;
-    var page = opt.page ? opt.page : 1;
-    http.get(
-      {
-        host: "ws.audioscrobbler.com",
-        port: 80,
-        path:
-          "/2.0/?method=user.getartisttracks&page=" +
-          page +
-          "&api_key=" +
-          this.api_key +
-          "&autocorrect=1&user=" +
-          this.username +
-          "&artist=" +
-          encodeURIComponent(opt.artist),
-      },
-      function (res) {
-        var body = "";
-        res.on("data", function (chunk) {
-          body += chunk;
-        });
-        res.on("end", function () {
-          var parser = new xml2js.Parser(xml2js.defaults["0.1"]);
-          parser.parseString(body, function (err, result) {
-            if (typeof opt.callback == "function") {
-              opt.callback(result);
-            }
-          });
-        });
-      }
-    );
-  }
-
-  getAllTracks(opt) {
-    var lastfm = this;
-    var the_callback = opt.callback;
-    var tracks = [];
-    opt.callback = function (result) {
-      if (result["@"].status == "failed") {
-        the_callback({
-          success: false,
-          reason: result.error["#"],
-        });
-      } else {
-        var numPages = result.artisttracks["@"].totalPages;
-        for (var i = 0; i < result.artisttracks.track.length; i++) {
-          if (tracks.indexOf(result.artisttracks.track[i].name) < 0)
-            tracks.push(result.artisttracks.track[i].name);
-        }
-        if (result.artisttracks["@"].page < numPages) {
-          opt.page++;
-          lastfm.getTracks(opt);
-        } else {
-          the_callback({ success: true, artist: result.artisttracks["@"].artist, tracks: tracks });
-        }
-      }
+    return {
+      success: false,
+      error: result.error,
     };
-    opt.page = 1;
-    this.getTracks(opt);
-  }
-
-  getTopArtists(opt) {
-    var lastfm = this;
-    var the_callback = opt.callback;
-    delete opt.callback;
-    lastfm.doGet({
-      method: "user.gettopartists",
-      args: opt,
-      callback: function (result) {
-        if (typeof the_callback === "function") {
-          if (result["@"].status == "ok") {
-            the_callback({
-              success: true,
-              topArtists: result.topartists.artist,
-            });
-          } else {
-            the_callback({
-              success: false,
-              error: result.error["#"],
-            });
-          }
-        }
-      },
-    });
-  }
-
-  getSimilarArtists(opt) {
-    var lastfm = this;
-    var the_callback = opt.callback;
-    delete opt.callback;
-    lastfm.doGet({
-      method: "artist.getsimilar",
-      args: opt,
-      callback: function (result) {
-        if (typeof the_callback === "function") {
-          if (result["@"].status == "ok") {
-            the_callback({
-              success: true,
-              similarArtists: result.similarartists.artist,
-            });
-          } else {
-            the_callback({
-              success: false,
-              error: result.error["#"],
-            });
-          }
-        }
-      },
-    });
-  }
-
-  doGet(opt) {
-    var lastfm = this;
-    var the_callback = opt.callback;
-    opt.args.api_key = this.api_key;
-    opt.args.method = opt.method;
-    var path = "/2.0/?" + querystring.stringify(opt.args);
-    http.get(
-      {
-        host: "ws.audioscrobbler.com",
-        port: 80,
-        path: path,
-      },
-      function (res) {
-        var body = "";
-        res.on("data", function (chunk) {
-          body += chunk;
-        });
-        res.on("end", function () {
-          var parser = new xml2js.Parser(xml2js.defaults["0.1"]);
-          parser.parseString(body, function (err, result) {
-            if (typeof the_callback == "function") {
-              the_callback(result);
-            }
-          });
-        });
-      }
-    );
   }
 }
 
@@ -594,10 +496,26 @@ function now() {
 /**
  *
  * @param {string} str
- * @returns
+ * @returns {string}
  */
 function md5(str) {
   return crypto.createHash("md5").update(str, "utf8").digest("hex");
+}
+
+/**
+ * Converts an object to a query string for a POST body. The difference here
+ * is that we don't encode the values.
+ * @param {Record<string, string|number|boolean|undefined>} bodyObj
+ */
+function stringifyBody(bodyObj) {
+  return Object.keys(bodyObj)
+    .reduce((arr, key) => {
+      if (bodyObj[key]) {
+        arr.push(`${key}=${bodyObj[key]}`);
+      }
+      return arr;
+    }, [])
+    .join("&");
 }
 
 if (require.main === module) {
