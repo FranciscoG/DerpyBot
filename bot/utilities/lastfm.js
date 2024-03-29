@@ -20,9 +20,15 @@ const API_BASE = "ws.audioscrobbler.com/2.0";
  */
 
 /**
- * @typedef {object} ErrorResponse
- * @property {string} [message]
+ * @typedef {object} LastFmErrorResponse
+ * All Last.fm API responses will have these fields _IF_ there is an error.
  * @property {number} [error]
+ * @property {string} [message]
+ */
+
+/**
+ * @typedef {object} OurErrorResponse
+ * @property {string} [error]
  */
 
 /**
@@ -34,11 +40,19 @@ const API_BASE = "ws.audioscrobbler.com/2.0";
  */
 
 /**
- * @typedef {object} LastFmTrackScrobble
- * see https://www.last.fm/api/show/track.scrobble for fulll list of params
+ * @typedef {object} RequiredPostParams
+ * @property {string} api_key
+ * @property {string} sk
+ * @property {string} method
+ * @property {string} api_sig
+ */
+
+/**
+ * @typedef {object} ScrobbleParams
+ * see https://www.last.fm/api/show/track.scrobble for full list of params
  * @property {string} artist
  * @property {string} track
- * @property {number} timestamp The time the track started playing, in UNIX timestamp format (integer number of seconds since 00:00:00, January 1st 1970 UTC). This must be in the UTC time zone.
+ * @property {number} [timestamp] The time the track started playing, in UNIX timestamp format (integer number of seconds since 00:00:00, January 1st 1970 UTC). This must be in the UTC time zone.
  * @property {string} [album]
  */
 
@@ -62,6 +76,9 @@ class LastFm {
     this.session_key = options.session_key;
     this.logger = logger;
     this.validateOptions();
+    if (!this.session_key) {
+      this.setSessionKey();
+    }
   }
 
   validateOptions() {
@@ -93,23 +110,29 @@ class LastFm {
    *
    * @param {string} url
    * @param {RequestInit} options
-   * @returns
+   * @returns {Promise<LastFmErrorResponse & Record<string, any>>}
    */
   async doFetch(url, options = {}) {
     options.headers = options.headers || {};
     options.headers["User-Agent"] = "ChilloutMixer Bot";
     const res = await fetch(url, options);
     const json = await res.json();
-    return json;
+    if (typeof json === "object" && json) {
+      return json;
+    }
+    // this should never get to the next line, but just in case
+    return { error: 9999, message: "Invalid JSON response", response: json };
   }
 
   /**
-   *
+   * This method is used to make GET requests to the Last.fm API that expect
+   * a "artist" and "track" parameter. The method is determined by the "method".
+   * It will always include username, autocorrect: 1, and format: "json" in the query.
    * @param {object} opts
    * @param {string} opts.method
    * @param {string} opts.artist
    * @param {string} [opts.track]
-   * @returns
+   * @returns {Promise<OurErrorResponse & Record<string, any>>}
    */
   async doGet(opts) {
     /**
@@ -128,7 +151,18 @@ class LastFm {
 
     try {
       const json = await this.doFetch(url);
-      return json;
+      if (typeof json === "object" && json) {
+        if (typeof json.error !== "number") {
+          return json;
+        } else {
+          return {
+            error: json.message,
+          };
+        }
+      }
+      return {
+        error: "Invalid JSON response",
+      };
     } catch (e) {
       this.logger("error", "LASTFM", `Exception fetching ${opts.method}`, e);
       return {
@@ -138,36 +172,36 @@ class LastFm {
   }
 
   /**
+   * This will set the session key internally
    * For more info on the API:
    * https://www.last.fm/api/mobileauth
    * https://www.last.fm/api/show/auth.getMobileSession
    */
-  async getSessionKey() {
+  async setSessionKey() {
     try {
-      const api_sig = this.makeSignature("auth.getMobileSession");
-
+      /**
+       * @type {{ method: string, password: string, username: string, api_key: string, api_sig: string }}
+       */
+      // @ts-ignore api_sig is added in the next line
       const bodyObj = {
         method: "auth.getMobileSession",
         password: this.password,
         username: this.username,
         api_key: this.api_key,
-        api_sig,
       };
+      const api_sig = this.makeSignature(bodyObj);
+      bodyObj.api_sig = api_sig;
+
       const body = stringifyBody(bodyObj);
 
       const url = `https://${API_BASE}/?format=json`;
 
       /**
-       * @type {SessionKeyResponse | ErrorResponse}
+       * @type {SessionKeyResponse & LastFmErrorResponse}
        */
-      // @ts-ignore
       const json = await this.doFetch(url, { method: "POST", body });
       if (json?.session?.key) {
         this.session_key = json.session.key;
-        return {
-          success: true,
-          session_key: json.session.key,
-        };
       }
 
       if (json?.error && json?.message) {
@@ -177,103 +211,110 @@ class LastFm {
       throw new Error("Session key not found in response.");
     } catch (e) {
       this.logger("error", "LASTFM", "Exception getting session key: ", e);
-      return {
-        success: false,
-        error: e instanceof Error ? e.message : "",
-      };
     }
   }
 
   /**
    * https://www.last.fm/api/show/track.scrobble
-   * @param {LastFmTrackScrobble} opt
+   * @param {ScrobbleParams} opt
    */
   scrobbleTrack(opt) {
     const options = Object.assign(opt, { method: "track.scrobble" });
-    this.doScrobble(options);
+    return this.doScrobble(options);
   }
 
-  loveTrack(opt = {}) {
+  /**
+   * https://www.last.fm/api/show/track.love
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {string} opt.track
+   * @returns
+   */
+  loveTrack(opt) {
     const options = Object.assign(opt, { method: "track.love" });
-    this.doScrobble(options);
+    return this.doScrobble(options);
   }
 
-  unloveTrack(opt = {}) {
+  /**
+   * https://www.last.fm/api/show/track.unlove
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {string} opt.track
+   * @returns
+   */
+  unloveTrack(opt) {
     const options = Object.assign(opt, { method: "track.unlove" });
-    this.doScrobble(options);
+    return this.doScrobble(options);
   }
 
-  scrobbleNowPlayingTrack(opt = {}) {
+  /**
+   * https://www.last.fm/api/show/track.updateNowPlaying
+   * @param {object} opt
+   * @param {string} opt.artist
+   * @param {string} opt.track
+   */
+  scrobbleNowPlayingTrack(opt) {
     const options = Object.assign(opt, { method: "track.updateNowPlaying" });
-    this.doScrobble(options);
+    return this.doScrobble(options);
   }
 
   /**
    * Creates an API signature based on the rules outlined here:
    * https://www.last.fm/api/mobileauth#_4-sign-your-calls
    *
-   * @param {string} method
+   * @param {Record<string, undefined | string | null | boolean | number>} options
    */
-  makeSignature(method) {
-    const sig = [
-      "api_key",
-      this.api_key,
-      "method",
-      method,
-      "password",
-      this.password,
-      "username",
-      this.username,
-      this.api_secret,
-    ].join("");
-    const api_sig = md5(sig);
+  makeSignature(options) {
+    const keys = Object.keys(options).sort();
+    /**
+     * @type {string[]}
+     */
+    const initial = [];
+    const arr = keys.reduce((acc, key) => {
+      if (options[key]) {
+        acc.push(key + options[key]);
+      }
+      return acc;
+    }, initial);
+    const all = arr.join("") + this.api_secret;
+    const api_sig = md5(all);
     return api_sig;
   }
 
   /**
    *
-   * @param {LastFmTrackScrobble & { method: string }} options
+   * @param {ScrobbleParams & { method: string }} options
    */
   async doScrobble(options) {
+    if (!this.session_key) {
+      this.logger("error", "LASTFM", "Session key is required to scrobble tracks.");
+      return {
+        success: false,
+        error: "Session key is required to scrobble tracks.",
+      };
+    }
+
     try {
       options.timestamp = options.timestamp
         ? Math.floor(options.timestamp)
         : Math.floor(now() / 1000);
 
-      const api_sig = this.makeSignature(options.method);
-
-      // var sig =
-      //   "api_key" +
-      //   this.api_key +
-      //   "artist" +
-      //   options.artist +
-      //   "method" +
-      //   options.method +
-      //   "sk" +
-      //   this.session_key +
-      //   (options.tags != null ? "tags" + options.tags : "") +
-      //   "timestamp" +
-      //   options.timestamp +
-      //   "track" +
-      //   options.track +
-      //   this.api_secret;
-      // var api_sig = md5(sig);
-
+      /**
+       * @type {RequiredPostParams & ScrobbleParams}
+       */
+      // @ts-ignore api_sig is added in the next line
       const bodyObj = {
         ...options,
         sk: this.session_key,
         api_key: this.api_key,
-        api_sig,
       };
+      const api_sig = this.makeSignature(bodyObj);
+      bodyObj.api_sig = api_sig;
 
       const body = querystring.stringify(bodyObj);
 
       const url = `https://${API_BASE}/?format=json`;
 
-      /**
-       * @type {ErrorResponse}
-       */
-      // @ts-ignore
       const json = await this.doFetch(url, {
         method: "POST",
         body,
@@ -508,13 +549,18 @@ function md5(str) {
  * @param {Record<string, string|number|boolean|undefined>} bodyObj
  */
 function stringifyBody(bodyObj) {
-  return Object.keys(bodyObj)
-    .reduce((arr, key) => {
+  const keys = Object.keys(bodyObj);
+  /**
+   * @type {string[]}
+   */
+  const initial = [];
+  return keys
+    .reduce((acc, key) => {
       if (bodyObj[key]) {
-        arr.push(`${key}=${bodyObj[key]}`);
+        acc.push(`${key}=${bodyObj[key]}`);
       }
-      return arr;
-    }, [])
+      return acc;
+    }, initial)
     .join("&");
 }
 
@@ -535,7 +581,12 @@ if (require.main === module) {
     ...settings.LASTFM,
   });
 
-  lastfm.getSessionKey();
+  lastfm
+    .getPlays({
+      artist: "Cherokee",
+      track: "Take Care of You",
+    })
+    .then(console.log);
 }
 
 module.exports = { LastFm };
