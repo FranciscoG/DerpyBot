@@ -43,7 +43,7 @@ module.exports = function(bot, db, data) {
       setTimeout(process.exit, 1500);
       break;
     case 'reconnect':
-      bot.sendChat(':phone: Redialing Dubtrack, brb! :computer:');
+      bot.sendChat(':phone: Redialing QueUp, brb! :computer:');
       bot.disconnect();
       setTimeout(function(){
          bot.connect(settings.ROOMNAME);
