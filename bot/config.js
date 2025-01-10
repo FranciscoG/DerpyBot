@@ -36,7 +36,7 @@ module.exports = {
   'cleverbot' : true,
 
   // play music when the queue is empty
-  'playOnEmpty' : true,
+  'playOnEmpty' : false,
 
   // id of the playlist to use when queue is empty
   'playlistID' : '672a7f21b9eb7c00075f7d57',

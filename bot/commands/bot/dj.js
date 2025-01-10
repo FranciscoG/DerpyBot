@@ -20,7 +20,7 @@ module.exports = function(bot, db, data) {
       if (code === 200) {
         bot.sendChat('Left the queue. That was fun but I just want to chill now');
         bot.log('info', 'BOT', 'Successfully paused my queue');
-        bot.commandedToDJ = false;
+        bot.commandedToDJ = true;
         bot.isDJing = false;
 
         // clear the queue after pausing
