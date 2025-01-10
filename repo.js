@@ -55,7 +55,7 @@ function refineUser(data){
     'flow' : data.flow || 0,
     'DateAdded' : data.DateAdded || new Date(),
     'LastConnected': data.LastConnected || Date.now(),
-    'username' : data.username || '404unknown',
+    'username' : data.username || 'funkyfresh',
     'id' : data.id,
     'introduced' : data.introduced || false,
     'dubs': data.dubs || 0,

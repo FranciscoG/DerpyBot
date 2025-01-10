@@ -49,7 +49,7 @@ function shouldBotDJ(bot, data) {
     queue.join(bot, function(code, _data, extra){
       if (code === 200) {
         bot.log('info', 'BOT', 'Successfully joined the queue when no one was in it');
-        bot.isDJing = true;
+        bot.isDJing = false;
         bot.commandedToDJ = false;
       } else {
         bot.log('error','BOT', 'Could not un-pause my queue');

@@ -1,5 +1,5 @@
 "use strict";
-const API_URL = "http://api.urbandictionary.com/v0/";
+const API_URL = "https://api.urbandictionary.com/v0/";
 
 /**
  * @param {DubAPI} bot
@@ -37,7 +37,7 @@ function getFirstResult(path, bot) {
     .then((json) => showResult(bot, json))
     .catch((error) => {
       bot.log("error", "BOT", `[!urban] ${error}`);
-      bot.sendChat("Something happened connecting with urban dictionairy");
+      bot.sendChat("Something happened connecting with Urban Dictionary.");
     });
 }
 

@@ -1,5 +1,8 @@
 'use strict';
 
+const _private = require(process.cwd() + "/private/get");
+const settings = _private.settings;
+
 // convert X minutes to ms
 function minToMs(x) {
   return  x/*min*/ * 60/*sec*/ * 1000 /*ms*/;
@@ -10,6 +13,8 @@ function minToMs(x) {
  * @type {Object}
  */
 module.exports = {
+  "botName" : settings.USERNAME,
+
   // url location of this bot's commands
   "commands" : "http://franciscog.com/DerpyBot/commands/",
 
@@ -27,23 +32,27 @@ module.exports = {
   // auto upvote every song
   'autoUpvote' : true, 
 
+  // enable the bot to respond to chat messages using the Cleverbot API
+  'cleverbot' : true,
+
   // play music when the queue is empty
-  'playOnEmpty' : false,
+  'playOnEmpty' : true,
 
   // id of the playlist to use when queue is empty
-  'playlistID' : '58810d14c3d427420056f6c2',
+  'playlistID' : '672a7f21b9eb7c00075f7d57',
 
   // name of the playlist (althernative to playlist id, can find id using getPlaylists)
-  'playlistName' : 'main (1)',
+  'playlistName' : 'mix',
 
   // make the bot save any song played (not skipped) to a playlist
-  'saveSongs' : false, 
+  'saveSongs' : true, 
   
   // if a song is stuck because it has issues, automatically skip it
   'autoskip_stuck' : true,
 
   // should we warn the room that a song in the queue was played within X amount of hours
   'recently_played_warning' : true,
+
   // How many HOURS ago, or more, it's ok to allow a song to repeat
   'recently_played_limit' : 12,
 
