@@ -1,5 +1,8 @@
 'use strict';
 
+const _private = require(process.cwd() + "/private/get");
+const settings = _private.settings;
+
 // convert X minutes to ms
 function minToMs(x) {
   return  x/*min*/ * 60/*sec*/ * 1000 /*ms*/;
@@ -10,6 +13,8 @@ function minToMs(x) {
  * @type {Object}
  */
 module.exports = {
+  "botName" : settings.USERNAME,
+
   // url location of this bot's commands
   "commands" : "http://franciscog.com/DerpyBot/commands/",
 
@@ -27,17 +32,17 @@ module.exports = {
   // auto upvote every song
   'autoUpvote' : true, 
 
-  // enable OpenAI to respond whenever someone @ the bot
-  'openai' : true,
+  // enable the bot to respond to chat messages using the Cleverbot API
+  'wit' : true,
 
   // play music when the queue is empty
   'playOnEmpty' : false,
 
   // id of the playlist to use when queue is empty
-  'playlistID' : '69b215f8fa94990007dfdb44',
+  'playlistID' : '672a7f21b9eb7c00075f7d57',
 
-  // name of the playlist (alternative to playlist id, can find id using getPlaylists)
-  'playlistName' : 'newplaylist',
+  // name of the playlist (althernative to playlist id, can find id using getPlaylists)
+  'playlistName' : 'mix',
 
   // make the bot save any song played (not skipped) to a playlist
   'saveSongs' : true, 
@@ -62,12 +67,12 @@ module.exports = {
 
   'longSongs' : {
     // should we warn the room that a song exceeds the max length?
-    'warn' : true,
+    'warn' : false,
     // set max song length so you can warn and/or auto skip
-    'max' : minToMs(15),
+    'max' : minToMs(10),
     // auto skip a song that's long
     'skip' : false,
     // chat message to show when a song is skipped
-    'message' : 'Just a friendly warning that this song is 15 longer or more'
+    'message' : 'Just a friendly warning that this song is 10 minutes or longer'
   }
 };

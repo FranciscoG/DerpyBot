@@ -1,32 +1,45 @@
 'use strict';
-var repo = require(process.cwd()+'/repo');
-var mediaStore = require(process.cwd()+ '/bot/store/mediaInfo.js');
+var lastfm = require(process.cwd() + '/bot/utilities/lastfm.js');
+var mediaStore = require(process.cwd() + '/bot/store/mediaInfo.js');
 var moment = require('moment');
 
 /**
- * Checks the db to see who was the last person who played the current song
+ * Looks up the last time a track was scrobbled on Last.fm.
+ *
+ * Usage:
+ *   !lastplay              — uses the currently playing song
+ *   !lastplay Artist - Title  — looks up a specific track
+ *
  * @param  {DubAPI} bot  dubapi instance
- * @param  {import('firebase-admin').database} db   Firebase instance
+ * @param  {object} db   Firebase instance (unused, kept for interface parity)
  * @param  {object} data Room info object
  */
 module.exports = function(bot, db, data) {
-  return bot.sendChat('*lastplay* has been disabled cause it was broke, like @ciscog\'s ability to code. oooooh burn! :fire: :fire:');
+  var name;
 
-  var currentSong = mediaStore.getCurrent();
-  
-  repo.getSong(db, currentSong.id)
-    .then(function(data){
-      let val = data.val();
-      if (val) {
-        var when = moment(val.lastplay.when).fromNow();
-        if (val.plays === 1){
-          bot.sendChat(`This is the first time *${val.name}* has been played (well, since Dec 2016 at least)`);
-        } else {
-          bot.sendChat(`${val.name} was last played ${when} by ${val.lastplay.user}`);
-        }
-      }
-    }).catch(function(err){
-      // maybe do something ¯\_(ツ)_/¯
-    });
+  if (data.params && data.params.length > 0) {
+    name = data.params.join(' ');
+  } else {
+    var currentSong = mediaStore.getCurrent();
+    if (!currentSong || !currentSong.name) {
+      return bot.sendChat('No song is currently playing. Try !lastplay Artist - Title.');
+    }
+    name = currentSong.name;
+  }
 
+  var parsed = lastfm.parseName(name);
+
+  lastfm.getLastPlay(parsed.artist, parsed.track, function(err, result) {
+    if (err) {
+      bot.log('error', 'BOT', '[lastplay] ' + err.message);
+      return bot.sendChat('Could not retrieve last play info from Last.fm right now.');
+    }
+
+    if (!result) {
+      return bot.sendChat(`*${parsed.artist} - ${parsed.track}* has not been scrobbled on Last.fm yet.`);
+    }
+
+    var when = result.when ? moment(result.when).fromNow() : 'an unknown time ago';
+    bot.sendChat(`*${result.artist} - ${result.track}* was last played ${when}.`);
+  });
 };

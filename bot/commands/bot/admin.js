@@ -30,7 +30,7 @@ module.exports = function(bot, db, data) {
   var command = _.get(data, 'params[0]');
   // if messages was just '!admin' without a any arguments
   if (!command) {
-    bot.sendChat('What would you like me to do master?');
+    bot.sendChat('What would you like me to do masterᵇᵃᵗᵉʳ?');
     return;
   }
 

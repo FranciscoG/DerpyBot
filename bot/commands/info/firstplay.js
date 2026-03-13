@@ -10,19 +10,23 @@ var moment = require('moment');
  * @param  {object} data Room info object
  */
 module.exports = function(bot, db, data) {
-  return bot.sendChat('*firstplay* has been disabled cause it did not work. :frowning:');
-
   var currentSong = mediaStore.getCurrent();
-  
+
+  if (!currentSong || !currentSong.id) {
+    return bot.sendChat('No song is currently playing.');
+  }
+
   repo.getSong(db, currentSong.id)
     .then(function(data){
-      let val = data.val();
-      if (val) {
+      var val = data.val();
+      if (val && val.firstplay && val.firstplay.when) {
         var when = moment(val.firstplay.when).fromNow();
-        bot.sendChat(`${val.name} was first played ${when} by ${val.firstplay.user}`);
+        bot.sendChat(`*${val.name}* was first played ${when} by ${val.firstplay.user}`);
+      } else {
+        bot.sendChat(`No play history found for *${currentSong.name}*.`);
       }
     }).catch(function(err){
-      // maybe do something ¯\_(ツ)_/¯
+      bot.log('error', 'BOT', '[firstplay] ' + err.message);
+      bot.sendChat('Could not retrieve first play history right now.');
     });
-
 };

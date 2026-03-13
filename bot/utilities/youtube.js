@@ -66,12 +66,14 @@ function makeYTCheckerUrl(yid){
  * @param {object} media 
  */
 function regionBlock(bot, db, _region, yt, media){
+/*
   bot.sendChat(`*FYI, Youtube is saying this video has region restrictions:* - ${media.name}`);
   var ytid = _.get(yt, 'items[0].id');
   if (ytid) {
     var ytchk = makeYTCheckerUrl(ytid);
     bot.sendChat(`See here for more details: ${ytchk}`);
   }
+*/
 }
 
 function doSkip(bot, media, chatMsg, logReason) {
