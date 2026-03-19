@@ -15,7 +15,7 @@ const API_BASE = "ws.audioscrobbler.com/2.0";
 
 /**
  * @typedef {object} GetInfoParams
- * @property {string} artist
+ * @property {string} [artist]
  * @property {string} [track]
  */
 
@@ -107,7 +107,7 @@ class LastFm {
   }
 
   /**
-   *
+   * Automatically adds our user agent to the headers.
    * @param {string} url
    * @param {RequestInit} options
    * @returns {Promise<LastFmErrorResponse & Record<string, any>>}
@@ -117,7 +117,7 @@ class LastFm {
     options.headers["User-Agent"] = "ChilloutMixer Bot";
     const res = await fetch(url, options);
     const json = await res.json();
-    if (typeof json === "object" && json) {
+    if (typeof json === "object" && json !== null) {
       return json;
     }
     // this should never get to the next line, but just in case
@@ -130,8 +130,10 @@ class LastFm {
    * It will always include username, autocorrect: 1, and format: "json" in the query.
    * @param {object} opts
    * @param {string} opts.method
-   * @param {string} opts.artist
+   * @param {string} [opts.artist]
    * @param {string} [opts.track]
+   * @param {number} [opts.limit]
+   * @param {number} [opts.page]
    * @returns {Promise<OurErrorResponse & Record<string, any>>}
    */
   async doGet(opts) {
@@ -151,7 +153,7 @@ class LastFm {
 
     try {
       const json = await this.doFetch(url);
-      if (typeof json === "object" && json) {
+      if (typeof json === "object" && json !== null) {
         if (typeof json.error !== "number") {
           return json;
         } else {
@@ -160,9 +162,7 @@ class LastFm {
           };
         }
       }
-      return {
-        error: "Invalid JSON response",
-      };
+      return json;
     } catch (e) {
       this.logger("error", "LASTFM", `Exception fetching ${opts.method}`, e);
       return {
@@ -200,7 +200,7 @@ class LastFm {
        * @type {SessionKeyResponse & LastFmErrorResponse}
        */
       const json = await this.doFetch(url, { method: "POST", body });
-      if (json?.session?.key) {
+      if (json.session?.key) {
         this.session_key = json.session.key;
       }
 
@@ -528,6 +528,31 @@ class LastFm {
       error: result.error,
     };
   }
+
+  /**
+   * https://www.last.fm/api/show/track.search
+   * @param {object} opt
+   * @param {number} [opt.limit]
+   * @param {number} [opt.page]
+   * @param {string} opt.track
+   * @param {string} [opt.artist]
+   *
+   */
+  async trackSearch(opt) {
+    const result = await this.doGet({ ...opt, method: "track.search" });
+    // console.log("result", result);
+    if (!result?.error) {
+      return {
+        success: true,
+        trackmatches: result.results.trackmatches.track,
+      };
+    }
+
+    return {
+      success: false,
+      error: result.error,
+    };
+  }
 }
 
 function now() {
@@ -576,17 +601,15 @@ if (require.main === module) {
    * If successful, you'll see a JSON object with the session key.
    * Copy that key and paste it in the private/{ENV}/settings.js file in the LASTFM.api_session_key field.
    */
-  const { settings } = require(process.cwd() + "/private/get");
-  const lastfm = new LastFm({
-    ...settings.LASTFM,
-  });
-
-  lastfm
-    .getPlays({
-      artist: "Cherokee",
-      track: "Take Care of You",
-    })
-    .then(console.log);
+  // const { settings } = require(process.cwd() + "/private/get");
+  // const lastfm = new LastFm({
+  //   ...settings.LASTFM,
+  // });
+  // lastfm
+  //   .trackSearch({
+  //     track: "Deep Koliis, KastomariN - Leave ( Instrumental version)",
+  //   })
+  //   .then(console.log);
 }
 
 module.exports = { LastFm };

@@ -7,6 +7,26 @@ interface DubAPI {
   events: { [key: string]: string };
   moderateSkip: (cb: () => void) => void;
   getDJ: () => DubAPIUser;
+  updub: () => void;
+
+  myconfig: typeof import('./config');
+  getRoomHistory: typeof import('./extend/getRoomHistory');
+  addToPlaylist: typeof import('./extend/addToPlaylist');
+  getPlaylists: typeof import('./extend/getPlaylists');
+  shufflePlaylist: typeof import('./extend/shufflePlaylist');
+  getUserQueue: typeof import('./extend/getUserQueue');
+  DM: typeof import('./extend/directMessages');
+  _: {
+    connected: boolean;
+    room?: { id?: string };
+    reqHandler: {
+      queue(
+        request: { method: string, url: string },
+        callback: (code: number, body: { data: any }) => void
+      ): void
+    }
+  };
+  emit: (event: string, error: Error) => void;
 }
 
 interface DubAPIUser {
@@ -63,4 +83,18 @@ interface Song {
   };
   user: { username: string };
   media: { id: string; name: string };
+}
+
+interface SongHistory {
+  songid: string;
+  played: number;
+  skipped?: boolean;
+  _user: {
+    username: string;
+  };
+  _song: {
+    name: string;
+    fkid: string;
+    type: string;
+  };
 }
