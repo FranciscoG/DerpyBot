@@ -3,20 +3,22 @@
  * Loads spreadsheet data into memory
  */
 var moment = require('moment');
-const {google} = require('googleapis');
+const { sheets } = require('@googleapis/sheets');
 
 class MySheet {
   constructor(id, key) {
     this.sheetid = id;
 
-    this.sheets = google.sheets({
-      version: 'v4', 
+    this.sheets = sheets({
+      version: 'v4',
+      // TODO: I updated the googleapis package and I think I need to do some
+      // oauth stuff now. We're not using this anymore so ignoring this for now
       auth: key
     });
   }
 
   getRows(name, range) {
-    return new Promise((resolve, reject)=>{
+    return new Promise((resolve, reject) => {
       this.sheets.spreadsheets.values.get({
         spreadsheetId: this.sheetid,
         range: `${name}!${range}`
@@ -36,9 +38,9 @@ class MySheet {
    */
   toObj(headersRow, rows) {
     headersRow = headersRow.map(h => h.replace(/ /g, '_'));
-    return rows.map((row)=>{
+    return rows.map((row) => {
       let obj = {};
-      row.forEach((cell,i)=>{
+      row.forEach((cell, i) => {
         obj[headersRow[i]] = cell;
       });
       return obj;
@@ -51,7 +53,7 @@ class MySheet {
     // get today's day
     var a = moment(Date.now());
 
-    rows.reverse().forEach((row)=>{
+    rows.reverse().forEach((row) => {
       if (!row[dateCol]) { return; }
 
       // check the date of the row in the spreadsheet

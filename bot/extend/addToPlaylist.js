@@ -8,15 +8,23 @@
 let loc = process.cwd() + '/node_modules/dubapi';
 const endpoints = require(loc + '/lib/data/endpoints.js');
 
-module.exports = function(playlistID, fkid, type, callback){
-  /* jshint validthis:true */
-  if (!this._.connected){ return false; }
-  
-  var url  = endpoints.userPlaylist.replace('%PID%',playlistID) + '/songs';
+/**
+ * 
+ * @this {DubAPI}
+ * @param {string} playlistID 
+ * @param {string} fkid 
+ * @param {string} type 
+ * @param {(code: number, data) => void} callback 
+ * @returns {boolean}
+ */
+module.exports = function (playlistID, fkid, type, callback) {
+  if (!this._.connected) { return false; }
 
-  var form = {fkid: fkid, type: type};
+  var url = endpoints.userPlaylist.replace('%PID%', playlistID) + '/songs';
 
-  this._.reqHandler.queue({method: 'POST', url: url, form: form}, callback);
+  var form = { fkid, type };
+
+  this._.reqHandler.queue({ method: 'POST', url, form }, callback);
 
   return true;
 };

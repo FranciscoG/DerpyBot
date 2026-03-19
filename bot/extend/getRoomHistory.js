@@ -41,13 +41,13 @@ function makeRequestArray(roomID, pages) {
 
 // store our module-scoped generator
 /**
- * @type {IterableIterator<string>}
+ * @type {IterableIterator<void>}
  */
 var hist;
 
 /**
  * Make requests to url and return results to yield
- * @param  {object} context "this" of DubAPI
+ * @param  {DubAPI} context "this" of DubAPI
  * @param  {string} url     The url to make GET request to
  */
 function requestWrapper(context, url) {
@@ -69,14 +69,15 @@ function requestWrapper(context, url) {
 
 /**
  * Main Generator function to iterate over array at our own pace
- * @param {object} context       the "this" of the DubAPI
- * @param {string[]} reqArray       the array of history urls that we will be calling
- * @param {(history: string[]) => void} doneCB      on complete, this will be exec passing history[] to it
+ * @param {DubAPI} context the "this" of the DubAPI
+ * @param {string[]} reqArray the array of history urls that we will be calling
+ * @param {(history: SongHistory[]) => void} doneCB  on complete, this will be exec passing history[] to it
+ * TODO: the param is actually an array of objects
  * @returns {IterableIterator<void>}
  */
 function* history(context, reqArray, doneCB) {
   /**
-   * @type {string[]}
+   * @type {SongHistory[]}
    */
   let history = [];
 
@@ -93,17 +94,19 @@ function* history(context, reqArray, doneCB) {
 
 /**
  * API for module. This is what you will be calling externally
+ * @this {DubAPI}
  * @param  {number}   pages       number of pages of history to retrieve
- * @param  {()=>void} callback when all history pages are retrieved, this funciton will be run
+ * @param  {(history: SongHistory[])=>void} callback when all history pages are retrieved, this funciton will be run
+ * @returns {false | void}
  */
 function getRoomHistory(pages, callback) {
   /* jshint validthis:true */
-  if (!this._.connected) {
+  if (!this._?.connected) {
     return false;
   }
 
   // make sure we can get roomid
-  var roomid = _.get(this, "_.room.id");
+  var roomid = this._?.room?.id;
   if (!roomid) {
     return false;
   }
